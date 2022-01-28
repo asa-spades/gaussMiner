@@ -1,8 +1,6 @@
 # gaussMiner
 gaussian log file scraper for database creation
 
-Usage:
-
 This code was written in python 3
 
 Usage: python python gaussMiner '<pattern>' flags
