@@ -4,7 +4,7 @@ Usage:
 
 This code was written in python 3
 
-python gaussMine--help
+python gaussMiner --help
 
   -h, --help   show this help message and exit
   --latexXYZ   print all xyz coordinates from logfiles in filepath a file in
