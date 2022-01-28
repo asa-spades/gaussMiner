@@ -4,6 +4,9 @@ Usage:
 
 This code was written in python 3
 
+Usage: python python gaussMiner '<pattern>' flags
+  e.g. <pattern. = *log.  Must put glob pattern in quotes to avoid the shell from expanding the wildcards etc.  Python will do that.  
+
 python gaussMiner --help
 
   -h, --help   show this help message and exit
