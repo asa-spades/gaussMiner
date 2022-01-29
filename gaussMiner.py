@@ -1,17 +1,51 @@
+# preemble
 from pathlib import Path  
+import argparse
 import os
 import glob
 import re
+
+#argparsing
+ap = argparse.ArgumentParser(
+description = "provides some basic gaussian utilities \
+and logfile parsing")
+#add arguments
+ap.add_argument('filePattern', type = str, 
+                 help = 'specify the namepattern to run script on in current working directory \
+                         must be in quotes to keep shell from expanding wilcard')
+ap.add_argument('--latexXYZ',required = False, 
+                action='store_true',
+                help = 'print all xyz coordinates from logfiles \
+               in filepath a file in latex tabular format\
+               to be used in the longtable environment')
+ap.add_argument('--XYZs',required = False, 
+                action='store_true',
+                help = 'print all xyz coordinates from logfiles \
+               to individual xyz files')
+ap.add_argument('--gjf',required = False, 
+                action='store_true',
+                help = 'prepare gjf files from final logfiles\
+               coordinates')
+ap.add_argument('--dataBase',required = False, 
+                action='store_true',
+                help = 'prepare a comprehensive table of \
+                available properties')
+#create dictionary of argument values
+#passed an empty string to parse_args method in order to make it run in ipynb 
+args = vars(ap.parse_args())
+
+# defining object class for the logfiles
 class logFileObj(object):
-    def __init__(self, fileStringPath, filePath = None, name = None, xyz = None, latexXYZ = None, energyFree = None, energySCF = None, 
+    def __init__(self, fileStringPath, filePath = None, name = None, nameStem = None, xyz = None, gjf = None, latexXYZ = None, energyFree = None, energySCF = None, 
                  molFormula = None, program = None, homo = None, lumo =  None, alphaOcc = None, alphaVirtual = None,
                 homoMinusOne = None, homoOrbNumber = None, homoMinusOneOrbNumber = None, betaHomo = None, betaLumo = None, 
-                 betaOcc = None, betaVirtual = None):
+                 betaOcc = None, betaVirtual = None, chargeMult = None):
         #The following are the class attributes 
         # I had a self.datablock but the python literature idicates I might have problems with that file being kept open in that case
         self.fileStringPath = fileStringPath
         self.filePath = Path(fileStringPath)
         self.name = self.filePath.name
+        self.nameStem = self.filePath.stem
         # Im not sure if I really want these to be attributes or things I get from methods
         self.energyFree = energyFree
         self.energySCF = energySCF
@@ -24,11 +58,14 @@ class logFileObj(object):
         self.homoMinusOne = homoMinusOne
         self.homoOrbNumber = homoOrbNumber
         self.homoMinusOneOrbNumber = homoMinusOneOrbNumber
+        self.xyz = xyz
+        self.gjf = gjf
         self.latexXYZ = latexXYZ
         self.betaHomo = betaHomo
         self.betaOcc = betaOcc
         self.betaVirtual = betaVirtual
         self.betaLumo = betaLumo
+        self.chargeMult = chargeMult
         #The following are the class methods
     def getText(self): # this method is just to test my object creation
         return('Test object creation by returning this text')
@@ -149,7 +186,7 @@ class logFileObj(object):
         betaMolecOrbDict['betaVirtOrbs'] = list(map(float, betaMolecOrbDict['betaVirtOrbs']))
         return(betaMolecOrbDict)
     
-    def getCoords(self):
+    def getCoordsLatex(self):
         inputPath = self.filePath
         with open(inputPath, "r") as f:
 
@@ -191,15 +228,86 @@ class logFileObj(object):
                 coordsList[i] = coordsLine
             return(coordsList)
 
+    def getXYZfiles(self):
+        inputPath = self.filePath
+        with open(inputPath, "r") as f:
 
-
-                
-#   def isNormalterm(self):
-    
-#    def whatIsJobType(self):
+            finalCoordsStart = ''
+            finalCoordsEnd = ''
+            coordsLength = 0
+            coordsList = []
+            isStruct = False
+            start = 0
+            dataBlock = []
+            for i,line in enumerate(f):
+                dataBlock.append(line.strip())
+                if line.find('Standard orientation') != -1:
+                    isStruct = True
+                    start = i + 5
+                    finalCoordsStart = start
+                if line.find('-----') != -1 and i > int(start) and isStruct == True:
+                    finalCoordsEnd = i
+                    isStruct = False
+           # print(dataBlock[int(finalCoordsStart):int(finalCoordsEnd)])
+            coordsList = (dataBlock[int(finalCoordsStart):int(finalCoordsEnd)])
+            coordsLength += (len(coordsList))
+            atomCount = [str(coordsLength)]
+            coordsList.insert(0,atomCount)
+            commentLine = [self.name, str(self.energyFree)]
+            coordsList.insert(1,commentLine)
+            for i in range(2,len(coordsList)):
+                coordsLine = coordsList[i].split()
+                del(coordsLine[0])
+                del(coordsLine[1])
+                coordsLine[0] = periodicTable[coordsLine[0]]
+                coordsList[i] = coordsLine
+            return(coordsList)
         
-#    def 
-    
+    def getGjfFiles(self):
+        inputPath = self.filePath
+        with open(inputPath, "r") as f:
+
+            finalCoordsStart = ''
+            finalCoordsEnd = ''
+            coordsLength = 0
+            coordsList = []
+            isStruct = False
+            start = 0
+            dataBlock = []
+            for i,line in enumerate(f):
+                dataBlock.append(line.strip())
+                if line.find('Standard orientation') != -1:
+                    isStruct = True
+                    start = i + 5
+                    finalCoordsStart = start
+                if line.find('-----') != -1 and i > int(start) and isStruct == True:
+                    finalCoordsEnd = i
+                    isStruct = False
+           # print(dataBlock[int(finalCoordsStart):int(finalCoordsEnd)])
+            coordsList = (dataBlock[int(finalCoordsStart):int(finalCoordsEnd)])
+            for i in range(len(coordsList)):
+                coordsLine = coordsList[i].split()
+                del(coordsLine[0])
+                del(coordsLine[1])
+                coordsLine[0] = periodicTable[coordsLine[0]]
+                coordsList[i] = coordsLine
+            return(coordsList)        
+        
+    def getChargeMult(self):
+        inputPath = self.filePath
+        chargeMultDict = {}
+        chargeMultReg = re.compile(r'(Charge = )([\s-]\d)( Multiplicity = )(\d)')
+        exitStatement = 0
+        with open(inputPath, "r") as f:
+            for line in f.readlines():
+                match = chargeMultReg.search(line)
+                try:
+                    chargeMultDict['charge'] = match.group(2)
+                    chargeMultDict['mult'] = match.group(4)
+                    break
+                except AttributeError:
+                    pass
+        return(chargeMultDict)    
     
 # this is the element dictionary
 periodicTable = {"1" : "H", "2" : "He", "3" : "Li", "4" : "Be", "5" : "B", \
@@ -235,7 +343,7 @@ def listLogsMakelogFileObj():
     that have a group of methods making their parsing and metadata collection easier'''
     
     workingDir = Path.cwd() #defines the working directory as current working directory path object
-    logPathList = list(workingDir.glob('*.log')) # makes a list of path object with stated pattern
+    logPathList = list(workingDir.glob(args['filePattern'])) # makes a list of path object with stated pattern
     
     logObjectDictionary = {}
     for logPath in logPathList:
@@ -277,29 +385,76 @@ for key in logFileObjs.keys():
     except KeyError:
         pass
 
-workDir = Path.cwd()
-outPutFileName = str(workDir.name) + '_csv.txt'
-print(outPutFileName)
-with open(outPutFileName, "a+") as fOut:
-    fOut.write('name, energySCF, energyFree, homo, homoMinusOne, homoMinusOneOrbNumber, lumo, betaHomo, betaLumo\n')
-    for key in logFileObjs.keys():
-        fOut.write(f'{logFileObjs[key].name}, {logFileObjs[key].energySCF}, {logFileObjs[key].energyFree}, \
-{logFileObjs[key].homo}, {logFileObjs[key].homoMinusOne}, {logFileObjs[key].homoMinusOneOrbNumber},  {logFileObjs[key].lumo}, {logFileObjs[key].betaHomo}, {logFileObjs[key].betaLumo}\n')
+#creating a large table or database of physicochemical properties
+if args['dataBase']:
+    workDir = Path.cwd()
+    outPutFileName = str(workDir.name) + '_dataBase.csv'
+    print(outPutFileName)
+    with open(outPutFileName, "a+") as fOut:
+        fOut.write('name, energySCF, energyFree, homo, homoMinusOne, homoMinusOneOrbNumber, lumo, betaHomo, betaLumo\n')
+        for key in logFileObjs.keys():
+            fOut.write(f'{logFileObjs[key].name}, {logFileObjs[key].energySCF}, {logFileObjs[key].energyFree}, \
+    {logFileObjs[key].homo}, {logFileObjs[key].homoMinusOne}, {logFileObjs[key].homoMinusOneOrbNumber},  {logFileObjs[key].lumo}, {logFileObjs[key].betaHomo}, {logFileObjs[key].betaLumo}\n')
         
-for key in logFileObjs.keys():
-    try: 
-        logFileObjs[key].latexXYZ = logFileObjs[key].getCoords()
-    except (KeyError, ValueError):
-        pass
-
-workDir = Path.cwd()
-outPutFileName = str(workDir.name) + '_latexXYZ.txt'
-print(outPutFileName)
-with open(outPutFileName, "a+") as fOut:
+# producing a file with xyz files in LaTeX tabular format for putting in longtable environment in SI 
+if args['latexXYZ']:
     for key in logFileObjs.keys():
-        try:
-            for i in range(len(logFileObjs[key].latexXYZ)):
-                fOut.write(' '.join(logFileObjs[key].latexXYZ[i]) + '\n')
-        except TypeError:
+        try: 
+            logFileObjs[key].latexXYZ = logFileObjs[key].getCoordsLatex()
+        except (KeyError, ValueError):
             pass
+    workDir = Path.cwd()
+    outPutFileName = str(workDir.name) + '_latexXYZ.txt'
+    print(outPutFileName)
+    with open(outPutFileName, "a+") as fOut:
+        for key in logFileObjs.keys():
+            try:
+                for i in range(len(logFileObjs[key].latexXYZ)):
+                    fOut.write(' '.join(logFileObjs[key].latexXYZ[i]) + '\n')
+            except TypeError:
+                pass
+
+# Producing individual xyz files from logfiles for example for visualization in ChimeraX
+if args['XYZs']:
+    for key in logFileObjs.keys():
+        try: 
+            logFileObjs[key].xyz = logFileObjs[key].getXYZfiles()
+        except (KeyError, ValueError):
+            pass
+    for key in logFileObjs.keys():
+        xyzFileName = logFileObjs[key].nameStem + '.xyz'
+        with open(xyzFileName, "a+") as fOut:
+            try:
+                for i in range(len(logFileObjs[key].xyz)):
+                    fOut.write(' '.join(logFileObjs[key].xyz[i]) + '\n')
+            except TypeError:
+                pass
+
+# Producing individual .gjf files from logfiles for example for restoring a project from hard drive or just to pick the last geometry from an opt to clear some bugs
+if args['gjf']:
+    for key in logFileObjs.keys():
+        try: 
+            logFileObjs[key].chargeMult = logFileObjs[key].getChargeMult()
+        except (KeyError, ValueError):
+            pass
+    for key in logFileObjs.keys():
+        try: 
+            logFileObjs[key].gjf = logFileObjs[key].getGjfFiles()
+        except (KeyError, ValueError):
+            pass
+    for key in logFileObjs.keys():
+        gjfFileName = logFileObjs[key].nameStem + '.gjf'
+        try:
+            charge = logFileObjs[key].chargeMult['charge'].strip()
+            mult = logFileObjs[key].chargeMult['mult'].strip()
+        except KeyError:
+            pass
+        with open(gjfFileName, "a+") as fOut:
+            fOut.write(f'%chk={logFileObjs[key].nameStem}.chk\n%mem=10GB\n%nprocs=36\n#P Routeline\n\nTitle card required\n\n{charge} {mult}\n')
+            try:
+                for i in range(len(logFileObjs[key].gjf)):
+                    fOut.write(' '.join(logFileObjs[key].gjf[i]) + '\n')
+            except TypeError:
+                pass
+            fOut.write('\n\n')
 
